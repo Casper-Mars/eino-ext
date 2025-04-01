@@ -24,7 +24,7 @@ import (
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/cloudwego/eino-ext/libs/acl/openai"
+	"github.com/Casper-Mars/eino-ext/libs/acl/openai"
 )
 
 type ChatModelConfig struct {
