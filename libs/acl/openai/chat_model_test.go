@@ -98,3 +98,22 @@ func TestPanicErr(t *testing.T) {
 	err := newPanicErr("info", []byte("stack"))
 	assert.Equal(t, "panic error: info, \nstack: stack", err.Error())
 }
+
+//func TestGen(t *testing.T) {
+//	client, err := NewClient(context.Background(), &Config{
+//		APIKey:     os.Getenv("OPENAI_API_KEY"),
+//		ByAzure:    false,
+//		BaseURL:    os.Getenv("OPENAI_API_BASE"),
+//		Model:      "deepseek-v3-241226_1",
+//		HTTPClient: http.DefaultClient,
+//	})
+//	assert.NoError(t, err)
+//	msg, err := client.Generate(context.Background(), []*schema.Message{
+//		{
+//			Role:    "user",
+//			Content: "Hello",
+//		},
+//	})
+//	assert.NoError(t, err)
+//	fmt.Printf("msg: %+v\n", msg)
+//}

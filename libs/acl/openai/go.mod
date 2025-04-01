@@ -6,7 +6,7 @@ require (
 	github.com/bytedance/mockey v1.2.13
 	github.com/cloudwego/eino v0.3.17
 	github.com/getkin/kin-openapi v0.118.0
-	github.com/sashabaranov/go-openai v1.32.5
+	github.com/sashabaranov/go-openai v1.38.1
 	github.com/stretchr/testify v1.9.0
 )
 
