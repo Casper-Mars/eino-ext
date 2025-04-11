@@ -102,6 +102,18 @@ func (m *toolHelper) InvokableRun(ctx context.Context, argumentsInJSON string, o
 		return "", fmt.Errorf("call mcp tool fail: %w", err)
 	}
 
+	// 只返回第一个结果
+	if len(result.Content) == 0 {
+		return "No Result From Tool", nil
+	}
+	switch result.Content[0].GetType() {
+	case protocol.TextContent{}.GetType():
+		// 返回文本内容
+		return result.Content[0].(*protocol.TextContent).Text, nil
+	default:
+		// do nothing
+	}
+
 	marshaledResult, err := sonic.MarshalString(result)
 	if err != nil {
 		return "", fmt.Errorf("marshal mcp tool result fail: %w", err)
