@@ -109,7 +109,7 @@ func (m *toolHelper) InvokableRun(ctx context.Context, argumentsInJSON string, o
 	switch result.Content[0].GetType() {
 	case protocol.TextContent{}.GetType():
 		// 返回文本内容
-		return result.Content[0].(*protocol.TextContent).Text, nil
+		return result.Content[0].(protocol.TextContent).Text, nil
 	default:
 		// do nothing
 	}
