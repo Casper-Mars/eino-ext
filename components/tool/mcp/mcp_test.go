@@ -18,6 +18,9 @@ package mcp
 
 import (
 	"context"
+	"github.com/ThinkInAIXYZ/go-mcp/client"
+	"github.com/ThinkInAIXYZ/go-mcp/protocol"
+	"github.com/ThinkInAIXYZ/go-mcp/transport"
 	"testing"
 
 	"github.com/cloudwego/eino/components/tool"
@@ -26,11 +29,24 @@ import (
 )
 
 func TestTool(t *testing.T) {
-	cli := &mockMCPClient{}
+	// Create transport client (using SSE in this example)
+	transportClient, err := transport.NewSSEClientTransport("http://127.0.0.1:8080/sse")
+	if err != nil {
+		t.Fatalf("Failed to create transport client: %v", err)
+	}
 
+	// Create MCP client using transport
+	mcpClient, err := client.NewClient(transportClient, client.WithClientInfo(protocol.Implementation{
+		Name:    "example MCP client",
+		Version: "1.0.0",
+	}))
+	if err != nil {
+		t.Fatalf("Failed to create MCP client: %v", err)
+	}
+	defer mcpClient.Close()
 	ctx := context.Background()
 
-	tools, err := GetTools(ctx, &Config{Cli: cli, ToolNameList: []string{"name"}})
+	tools, err := GetTools(ctx, &Config{Cli: mcpClient, ToolNameList: []string{"name"}})
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(tools))
 	info, err := tools[0].Info(ctx)

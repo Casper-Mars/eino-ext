@@ -19,15 +19,16 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/ThinkInAIXYZ/go-mcp/client"
+	"github.com/ThinkInAIXYZ/go-mcp/protocol"
+	"github.com/ThinkInAIXYZ/go-mcp/server"
+	"github.com/ThinkInAIXYZ/go-mcp/transport"
 	"log"
 	"time"
 
 	"github.com/cloudwego/eino/components/tool"
-	"github.com/mark3labs/mcp-go/client"
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
 
-	mcpp "github.com/cloudwego/eino-ext/components/tool/mcp"
+	mcpp "github.com/Casper-Mars/eino-ext/components/tool/mcp"
 )
 
 func main() {
@@ -50,28 +51,23 @@ func main() {
 }
 
 func getMCPTool(ctx context.Context) []tool.BaseTool {
-	cli, err := client.NewSSEMCPClient("http://localhost:12345/sse")
+	// Create transport client (using SSE in this example)
+	transportClient, err := transport.NewSSEClientTransport("http://127.0.0.1:8080/sse")
 	if err != nil {
-		log.Fatal(err)
-	}
-	err = cli.Start(ctx)
-	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to create transport client: %v", err)
 	}
 
-	initRequest := mcp.InitializeRequest{}
-	initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
-	initRequest.Params.ClientInfo = mcp.Implementation{
-		Name:    "example-client",
+	// Create MCP client using transport
+	mcpClient, err := client.NewClient(transportClient, client.WithClientInfo(protocol.Implementation{
+		Name:    "example MCP client",
 		Version: "1.0.0",
-	}
-
-	_, err = cli.Initialize(ctx, initRequest)
+	}))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to create MCP client: %v", err)
 	}
+	defer mcpClient.Close()
 
-	tools, err := mcpp.GetTools(ctx, &mcpp.Config{Cli: cli})
+	tools, err := mcpp.GetTools(ctx, &mcpp.Config{Cli: mcpClient})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -79,45 +75,57 @@ func getMCPTool(ctx context.Context) []tool.BaseTool {
 	return tools
 }
 
-func startMCPServer() {
-	svr := server.NewMCPServer("demo", mcp.LATEST_PROTOCOL_VERSION)
-	svr.AddTool(mcp.NewTool("calculate",
-		mcp.WithDescription("Perform basic arithmetic operations"),
-		mcp.WithString("operation",
-			mcp.Required(),
-			mcp.Description("The operation to perform (add, subtract, multiply, divide)"),
-			mcp.Enum("add", "subtract", "multiply", "divide"),
-		),
-		mcp.WithNumber("x",
-			mcp.Required(),
-			mcp.Description("First number"),
-		),
-		mcp.WithNumber("y",
-			mcp.Required(),
-			mcp.Description("Second number"),
-		),
-	), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		op := request.Params.Arguments["operation"].(string)
-		x := request.Params.Arguments["x"].(float64)
-		y := request.Params.Arguments["y"].(float64)
+type currentTimeReq struct {
+	Timezone string `json:"timezone" description:"current time timezone"`
+}
 
-		var result float64
-		switch op {
-		case "add":
-			result = x + y
-		case "subtract":
-			result = x - y
-		case "multiply":
-			result = x * y
-		case "divide":
-			if y == 0 {
-				return mcp.NewToolResultText("Cannot divide by zero"), nil
-			}
-			result = x / y
+func startMCPServer() {
+	// Create transport server (using SSE in this example)
+	transportServer, err := transport.NewSSEServerTransport("127.0.0.1:8080")
+	if err != nil {
+		log.Fatalf("Failed to create transport server: %v", err)
+	}
+
+	// Create MCP server using transport
+	mcpServer, err := server.NewServer(transportServer,
+		// Set server implementation information
+		server.WithServerInfo(protocol.Implementation{
+			Name:    "Example MCP Server",
+			Version: "1.0.0",
+		}),
+	)
+	if err != nil {
+		log.Fatalf("Failed to create MCP server: %v", err)
+	}
+	tool, err := protocol.NewTool("current time", "Get current time with timezone, Asia/Shanghai is default", currentTimeReq{})
+	if err != nil {
+		log.Fatalf("Failed to create tool: %v", err)
+		return
+	}
+
+	// Register tool handler
+	mcpServer.RegisterTool(tool, func(request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
+		req := new(currentTimeReq)
+		if err := protocol.VerifyAndUnmarshal(request.RawArguments, &req); err != nil {
+			return nil, err
 		}
-		log.Printf("Calculated result: %.2f", result)
-		return mcp.NewToolResultText(fmt.Sprintf("%.2f", result)), nil
+
+		loc, err := time.LoadLocation(req.Timezone)
+		if err != nil {
+			return nil, fmt.Errorf("parse timezone with error: %v", err)
+		}
+		text := fmt.Sprintf(`current time is %s`, time.Now().In(loc))
+
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: text,
+				},
+			},
+		}, nil
 	})
+
 	go func() {
 		defer func() {
 			e := recover()
@@ -125,11 +133,9 @@ func startMCPServer() {
 				fmt.Println(e)
 			}
 		}()
-
-		err := server.NewSSEServer(svr, server.WithBaseURL("http://localhost:12345")).Start("localhost:12345")
-
-		if err != nil {
-			log.Fatal(err)
+		if err = mcpServer.Run(); err != nil {
+			log.Fatalf("Failed to start MCP server: %v", err)
+			return
 		}
 	}()
 }

@@ -19,26 +19,25 @@ package mcp
 import (
 	"context"
 	"fmt"
-
+	"github.com/ThinkInAIXYZ/go-mcp/client"
+	"github.com/ThinkInAIXYZ/go-mcp/protocol"
 	"github.com/bytedance/sonic"
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/mark3labs/mcp-go/client"
-	"github.com/mark3labs/mcp-go/mcp"
 )
 
 type Config struct {
 	// Cli is the MCP (Model Control Protocol) client, ref: https://github.com/mark3labs/mcp-go?tab=readme-ov-file#tools
 	// Notice: should Initialize with server before use
-	Cli client.MCPClient
+	Cli *client.Client
 	// ToolNameList specifies which tools to fetch from MCP server
 	// If empty, all available tools will be fetched
 	ToolNameList []string
 }
 
 func GetTools(ctx context.Context, conf *Config) ([]tool.BaseTool, error) {
-	listResults, err := conf.Cli.ListTools(ctx, mcp.ListToolsRequest{})
+	listResults, err := conf.Cli.ListTools(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list mcp tools fail: %w", err)
 	}
@@ -80,7 +79,7 @@ func GetTools(ctx context.Context, conf *Config) ([]tool.BaseTool, error) {
 }
 
 type toolHelper struct {
-	cli  client.MCPClient
+	cli  *client.Client
 	info *schema.ToolInfo
 }
 
@@ -94,21 +93,11 @@ func (m *toolHelper) InvokableRun(ctx context.Context, argumentsInJSON string, o
 	if err != nil {
 		return "", fmt.Errorf("unmarshal input fail: %w", err)
 	}
-	result, err := m.cli.CallTool(ctx, mcp.CallToolRequest{
-		Request: mcp.Request{
-			Method: "tools/call",
-		},
-		Params: struct {
-			Name      string                 `json:"name"`
-			Arguments map[string]interface{} `json:"arguments,omitempty"`
-			Meta      *struct {
-				ProgressToken mcp.ProgressToken `json:"progressToken,omitempty"`
-			} `json:"_meta,omitempty"`
-		}{
-			Name:      m.info.Name,
-			Arguments: arg,
-		},
-	})
+	request := &protocol.CallToolRequest{
+		Name:      m.info.Name,
+		Arguments: arg,
+	}
+	result, err := m.cli.CallTool(ctx, request)
 	if err != nil {
 		return "", fmt.Errorf("call mcp tool fail: %w", err)
 	}
